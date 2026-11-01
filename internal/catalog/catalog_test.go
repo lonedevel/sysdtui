@@ -153,3 +153,41 @@ func TestEmbedded(t *testing.T) {
 		t.Errorf("RestrictNamespaces= (boolean or list) = %+v", rn)
 	}
 }
+
+// Newer pages (systemd 258+) quote the extra values instead of setting
+// them in bold.
+func TestQuotedValues(t *testing.T) {
+	var c Catalog
+	c.Parse("systemd.exec", `.SH "SANDBOXING"
+.PP
+\fIPrivateTmp=\fR
+.RS 4
+Takes a boolean argument, or
+"disconnected"\&. If enabled, a new file system namespace is set up\&.
+.RE
+.PP
+\fIMemoryPressureWatch=\fR
+.RS 4
+Controls memory pressure monitoring\&. Takes one of
+"off",
+"on",
+"auto" or
+"skip"\&.
+.RE
+.PP
+\fIProtectFoo=\fR
+.RS 4
+Takes a boolean argument or a value described below\&.
+.RE
+`)
+	if d := c.Lookup("Service", "PrivateTmp"); d.Kind != KindBool || strings.Join(d.Values, " ") != "yes no disconnected" {
+		t.Errorf("PrivateTmp= %s %v", d.Kind, d.Values)
+	}
+	if d := c.Lookup("Service", "MemoryPressureWatch"); d.Kind != KindEnum || strings.Join(d.Values, " ") != "off on auto skip" {
+		t.Errorf("MemoryPressureWatch= %s %v", d.Kind, d.Values)
+	}
+	// A boolean "or" something unreadable must not reject other values.
+	if d := c.Lookup("Service", "ProtectFoo"); d.Kind != KindString {
+		t.Errorf("ProtectFoo= %s %v", d.Kind, d.Values)
+	}
+}

@@ -8,11 +8,14 @@ import (
 	"github.com/lonedevel/sysdtui/internal/unitfile"
 )
 
+// cat is the embedded catalog, treated as matching the installed systemd
+// so that value problems are errors.
 var cat = func() *catalog.Catalog {
 	c, err := catalog.Embedded()
 	if err != nil {
 		panic(err)
 	}
+	c.Exact = true
 	return c
 }()
 
@@ -103,4 +106,32 @@ func TestDropIn(t *testing.T) {
 	// Reset first: clean. Drop-ins need no [Install] or ExecStart= of their own.
 	in.File = unitfile.Parse("[Service]\nExecStart=\nExecStart=/usr/bin/foo --debug\n")
 	expect(t, in)
+}
+
+func TestConditionsAndArguments(t *testing.T) {
+	expect(t, unit(`[Unit]
+ConditionVirtualization=!container
+ConditionVirtualization=|vm
+ConditionVirtualization=no
+[Service]
+ExecStart=/a
+ProtectHostname=yes:example
+[Install]
+WantedBy=a.target
+`, "service"))
+	expect(t, unit("[Unit]\nConditionVirtualization=!toaster\n[Service]\nExecStart=/a\n[Install]\nWantedBy=a.target\n", "service"),
+		"error: ConditionVirtualization= must be one of")
+}
+
+// With docs for another systemd version, an unlisted value may be a newer
+// feature: warn instead.
+func TestOtherVersionDocs(t *testing.T) {
+	c, _ := catalog.Embedded()
+	var got []string
+	for _, is := range Check(c, unit("[Service]\nExecStart=/a\nPrivateTmp=disconnected\n[Install]\nWantedBy=a.target\n", "service")) {
+		got = append(got, is.Severity.String()+": "+is.Msg)
+	}
+	if len(got) != 1 || !strings.HasPrefix(got[0], "warning: PrivateTmp= takes a boolean") || !strings.Contains(got[0], "per systemd 255's docs") {
+		t.Errorf("issues = %q", got)
+	}
 }

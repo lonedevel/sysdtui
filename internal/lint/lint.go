@@ -84,7 +84,7 @@ func Check(c *catalog.Catalog, in Input) []Issue {
 				}
 				continue
 			}
-			checkValue(d, l, add)
+			checkValue(c, d, l, add)
 		}
 	}
 	if in.DropIn {
@@ -95,10 +95,32 @@ func Check(c *catalog.Catalog, in Input) []Issue {
 	return out
 }
 
-func checkValue(d *catalog.Directive, l *unitfile.Line, add func(*unitfile.Line, Severity, string, ...any)) {
+func checkValue(c *catalog.Catalog, d *catalog.Directive, l *unitfile.Line, add func(*unitfile.Line, Severity, string, ...any)) {
+	// Docs for another systemd version may lack values this one accepts.
+	sev, note := Error, ""
+	if !c.Exact {
+		sev = Warning
+		if c.Version != "" {
+			note = " (per systemd " + c.Version + "'s docs)"
+		}
+	}
 	v := l.Value
 	if v == "" || strings.Contains(v, "%") || strings.Contains(v, "$") {
 		return // empty resets; specifiers and variables expand at load time
+	}
+	// Conditions and asserts take "|" (trigger) and "!" (negate) prefixes,
+	// and the ones with named values also accept a boolean.
+	if strings.HasPrefix(d.Name, "Condition") || strings.HasPrefix(d.Name, "Assert") {
+		v = strings.TrimLeft(v, "|!")
+		if booleans[strings.ToLower(v)] {
+			return
+		}
+	}
+	// Some values carry an argument after a colon: ProtectHostname=private:host.
+	if i := strings.IndexByte(v, ':'); i > 0 && (d.Kind == catalog.KindBool || d.Kind == catalog.KindEnum) {
+		if x := v[:i]; booleans[strings.ToLower(x)] || indexOf(d.Values, x) >= 0 {
+			return
+		}
 	}
 	switch d.Kind {
 	case catalog.KindBool:
@@ -111,9 +133,9 @@ func checkValue(d *catalog.Directive, l *unitfile.Line, add func(*unitfile.Line,
 			}
 		}
 		if len(d.Values) > 2 {
-			add(l, Error, "%s= takes a boolean or one of: %s", d.Name, strings.Join(d.Values[2:], ", "))
+			add(l, sev, "%s= takes a boolean or one of: %s%s", d.Name, strings.Join(d.Values[2:], ", "), note)
 		} else {
-			add(l, Error, "%s= takes a boolean (yes/no)", d.Name)
+			add(l, sev, "%s= takes a boolean (yes/no)%s", d.Name, note)
 		}
 	case catalog.KindEnum:
 		word := v
@@ -128,7 +150,7 @@ func checkValue(d *catalog.Directive, l *unitfile.Line, add func(*unitfile.Line,
 				return
 			}
 		}
-		add(l, Error, "%s= must be one of: %s", d.Name, strings.Join(d.Values, ", "))
+		add(l, sev, "%s= must be one of: %s%s", d.Name, strings.Join(d.Values, ", "), note)
 	case catalog.KindPath:
 		for _, p := range strings.Fields(v) {
 			p = strings.TrimLeft(p, "-+!:~|@")
@@ -157,6 +179,7 @@ var deprecated = map[string]string{
 	"InaccessibleDirectories": "InaccessibleDirectories= is deprecated; use InaccessiblePaths=",
 	"PermissionsStartOnly":    "PermissionsStartOnly= is deprecated; prefix commands with + instead",
 	"MemoryLimit":             "MemoryLimit= is deprecated; use MemoryMax=",
+	"CPUAccounting":           "CPUAccounting= is no longer documented: recent systemd always accounts CPU use",
 	"CPUShares":               "CPUShares= is deprecated; use CPUWeight=",
 	"StartupCPUShares":        "StartupCPUShares= is deprecated; use StartupCPUWeight=",
 	"BlockIOWeight":           "BlockIOWeight= is deprecated; use IOWeight=",

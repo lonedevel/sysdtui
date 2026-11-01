@@ -27,6 +27,7 @@ func main() {
 	c.Source = "embedded documentation from systemd"
 	if *version != "" {
 		c.Source += " " + *version
+		c.Version = *version
 	}
 	f, err := os.Create(*out)
 	if err != nil {

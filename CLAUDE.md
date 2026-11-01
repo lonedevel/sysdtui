@@ -14,6 +14,7 @@ make catalog                  # regenerate internal/catalog/systemd.json.gz from
 go test ./internal/catalog -run TestEmbedded  # a single test
 bin/sysdtui --dump-catalog Service            # inspect what the parser produced
 bin/sysdtui --lint /usr/lib/systemd/system/*.service  # find false positives on real units
+SYSDTUI_MAN_DIR=path/to/man5 bin/sysdtui --lint …     # same, against another systemd version's docs
 SYSDTUI_UNIT_PATH=/tmp/etc:/tmp/vendor bin/sysdtui     # try it without touching /etc
 ```
 
@@ -30,7 +31,7 @@ Data flows: **man pages → `catalog.Catalog`**, **unit file text → `unitfile.
 
 ## Rules
 
-- Lint must not flag stock units. Before and after a change to `lint` or the catalog, run `--lint` over `/usr/lib/systemd/system` and compare.
+- Lint must not flag stock units. Before and after a change to `lint` or the catalog, run `--lint` over `/usr/lib/systemd/system` and compare, with the embedded docs and with a newer systemd's pages (`SYSDTUI_MAN_DIR`); newer pages word things differently (quoted values, dropped directives).
 - The editor must never rewrite lines the user did not touch: keep `TestRoundTrip` passing.
 - User-visible flags or keys appear in README.md, `docs/sysdtui.1` and the footer hints in `view.go`. Update them together.
 - Releases: set `version` in `cmd/sysdtui/main.go` and add a section to `RELEASE_NOTES.md`.

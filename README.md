@@ -62,7 +62,7 @@ Run sysdtui as yourself. When a save needs root it uses `sudo`, and you'll see t
 
 ## Where the documentation comes from
 
-sysdtui reads the `systemd.*(5)` man pages installed on the machine (located with `man -w`), so the docs match your systemd version. Minimal systems and containers often ship without man pages, so the binary also embeds a catalog generated from systemd 255's pages. Selecting a section header in the editor shows which one is in use. Set `SYSDTUI_EMBEDDED_DOCS=1` to always use the embedded copy.
+sysdtui reads the `systemd.*(5)` man pages installed on the machine (located with `man -w`), so the docs match your systemd version. Minimal systems and containers often ship without man pages, so the binary also embeds a catalog generated from systemd 255's pages. Selecting a section header in the editor shows which one is in use. When the docs come from a different systemd version than the one installed, a value they don't list is reported as a warning rather than an error, since it may be a newer feature. Set `SYSDTUI_EMBEDDED_DOCS=1` to always use the embedded copy, or `SYSDTUI_MAN_DIR=/path/to/man5` to read pages from another directory.
 
 Directives in the catalog: [Unit] and [Install] from `systemd.unit(5)`, plus each type's page (`systemd.service(5)`, `.socket`, `.timer`, `.path`, `.mount`, `.automount`, `.swap`, `.slice`, `.scope`), with `systemd.exec(5)`, `systemd.kill(5)` and `systemd.resource-control(5)` added to the sections they apply to.
 

@@ -75,7 +75,13 @@ func abbrev(s string) bool {
 // Catalog indexes directives by section, then by name.
 type Catalog struct {
 	// Source says where the documentation came from.
-	Source     string                           `json:"source"`
+	Source string `json:"source"`
+	// Version is the systemd version the embedded docs describe.
+	Version string `json:"version,omitempty"`
+	// Exact is set when the docs describe the systemd that is installed
+	// (they are its own man pages, or the versions match), so a value
+	// they do not list is an error rather than possibly a newer feature.
+	Exact      bool                             `json:"-"`
 	Directives []*Directive                     `json:"directives"`
 	index      map[string]map[string]*Directive // section → name → directive
 }
@@ -269,10 +275,17 @@ func readPage(path string) (string, error) {
 }
 
 // Load returns the catalog from the installed man pages, which match the
-// installed systemd, or else the embedded one.
+// installed systemd, or else the embedded one. SYSDTUI_MAN_DIR names a
+// man5 directory to read instead.
 func Load() *Catalog {
+	if dir := os.Getenv("SYSDTUI_MAN_DIR"); dir != "" {
+		if c, err := FromDir(dir); err == nil {
+			return c
+		}
+	}
 	if os.Getenv("SYSDTUI_EMBEDDED_DOCS") == "" {
 		if c, err := FromMan(); err == nil && c.Len() > 100 {
+			c.Exact = true
 			return c
 		}
 	}
@@ -280,7 +293,21 @@ func Load() *Catalog {
 	if err != nil {
 		return &Catalog{Source: "none"}
 	}
+	c.Exact = c.Version != "" && c.Version == InstalledVersion()
 	return c
+}
+
+// InstalledVersion is the major version systemctl reports, or "".
+func InstalledVersion() string {
+	out, err := exec.Command("systemctl", "--version").Output()
+	if err != nil {
+		return ""
+	}
+	f := strings.Fields(string(out))
+	if len(f) >= 2 && f[0] == "systemd" {
+		return f[1]
+	}
+	return ""
 }
 
 // Marshal writes the catalog as gzipped JSON, the embedded form.
@@ -305,6 +332,8 @@ var (
 	firstStop = regexp.MustCompile(`(?m)^\.(sp|PP|RS)`)
 	// boolOrList matches "takes a boolean argument, or a space-separated
 	// list of…" within one sentence.
+	boolOr     = regexp.MustCompile(`boolean[^.]*\bor\b`)
+	quotedWord = regexp.MustCompile(`"([a-z0-9][a-z0-9+_-]*)"`)
 	boolOrList = regexp.MustCompile(`boolean[^.]*\bor (a|an|one or more)\b[^.]*\blist\b`)
 )
 
@@ -327,8 +356,14 @@ func infer(d *Directive, body []string) {
 		strings.Contains(text, "boolean argument") || strings.Contains(text, "a boolean value"):
 		d.Kind = KindBool
 		d.Values = []string{"yes", "no"}
-		if strings.Contains(text, "special value") || strings.Contains(text, "or one of") {
-			d.Values = append(d.Values, words(first, d.Values)...)
+		if boolOr.MatchString(text) {
+			// "Takes a boolean argument, or "disconnected"": collect the
+			// other values; if they cannot be read, accept anything.
+			if extra := words(first, []string{"yes", "no", "true", "false"}); len(extra) > 0 {
+				d.Values = append(d.Values, extra...)
+			} else {
+				d.Kind = KindString
+			}
 		}
 		if boolOrList.MatchString(text) {
 			// "a boolean or a list of…": the values are only suggestions.
@@ -362,11 +397,12 @@ func infer(d *Directive, body []string) {
 	applyOverride(d)
 }
 
-// words collects the bold lowercase tokens in troff source: the way the
-// pages set enumerated values.
-func words(src string, have []string) []string {
+// words collects the values a paragraph of troff source offers: bold
+// lowercase tokens, and (in newer pages) quoted words. Words in skip are
+// left out.
+func words(src string, skip []string) []string {
 	seen := map[string]bool{}
-	for _, h := range have {
+	for _, h := range skip {
 		seen[h] = true
 	}
 	var out []string
@@ -377,6 +413,12 @@ func words(src string, have []string) []string {
 		}
 		seen[w] = true
 		out = append(out, w)
+	}
+	for _, m := range quotedWord.FindAllStringSubmatch(inline(strings.ReplaceAll(src, "\n", " ")), -1) {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			out = append(out, m[1])
+		}
 	}
 	return out
 }
