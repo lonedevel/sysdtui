@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make lint
+      - run: make test
+      - run: make build
+      - name: Smoke test
+        run: |
+          ./bin/sysdtui --version
+          ./bin/sysdtui --dump-catalog Service | python3 -c 'import json,sys; d=json.load(sys.stdin); assert len(d["directives"]) > 200, len(d["directives"])'
+          ./bin/sysdtui --list | head
+      - name: Lint the runner's own units
+        # Reports what sysdtui would flag on a stock Ubuntu install; a
+        # warning here usually means the catalog or a check needs a fix.
+        run: ./bin/sysdtui --lint /usr/lib/systemd/system/*.service /usr/lib/systemd/system/*.timer || true

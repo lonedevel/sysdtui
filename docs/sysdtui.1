@@ -1,0 +1,172 @@
+.TH SYSDTUI 1 2026-11-01 "sysdtui 0.1.0" "User Commands"
+.SH NAME
+sysdtui \- edit systemd unit files with their documentation beside you
+.SH SYNOPSIS
+.B sysdtui
+.RB [ \-\-user ]
+.RI [ unit " | " file ]
+.br
+.B sysdtui
+.RB [ \-\-user ]
+.B \-\-override
+.I unit
+.br
+.B sysdtui
+.RB [ \-\-user ]
+.B \-\-new
+.I name
+.br
+.B sysdtui \-\-lint
+.IR file ...
+.br
+.B sysdtui
+.RB [ \-\-user ]
+.B \-\-list
+.br
+.B sysdtui \-\-dump\-catalog
+.RI [ section ...]
+.SH DESCRIPTION
+.B sysdtui
+is a terminal editor for systemd units.
+It lists the units on the search path and opens one in an editor that shows
+the focused directive's documentation, taken from the
+.BR systemd.unit (5),
+.BR systemd.service (5),
+.BR systemd.exec (5)
+and related pages, beside the field.
+It checks the file as it is edited, can run
+.B systemd\-analyze verify
+on it, and after saving can reload systemd and restart or enable the unit.
+.PP
+Units owned by a package are edited through an override drop-in
+.RI ( /etc/systemd/system/ unit .d/override.conf ),
+as
+.B systemctl edit
+does.
+Lines that are not changed are written back exactly, and the previous
+version of a file is kept with a
+.B ~
+suffix.
+When the target directory belongs to root,
+.B sysdtui
+installs the file with
+.BR sudo (8)
+and shows the commands before running them.
+.SH OPTIONS
+.TP
+.B \-\-user
+Work on the user's units, as
+.B systemctl \-\-user
+does.
+.TP
+.BI \-\-override " unit"
+Open the unit's override drop-in.
+.TP
+.BI \-\-new " name"
+Start a new unit from a template.
+A name without a suffix becomes a service; a path such as
+.I /mnt/data
+becomes a mount unit with the escaped name.
+.TP
+.B \-\-lint
+Check the named unit files (or drop-ins, as
+.IR unit .d/*.conf )
+and print
+.IR file : line : " severity" : " message"
+for each problem.
+Exits 1 if any error was found.
+.TP
+.B \-\-list
+Print the units found with their state, origin and path.
+.TP
+.B \-\-dump\-catalog
+Print the directive catalog as JSON, for all sections or those named.
+.TP
+.B \-\-version
+Print the version.
+.SH KEYS
+In the unit list:
+.B enter
+edit,
+.B o
+override drop-in,
+.B F
+edit a full copy,
+.B n
+new unit,
+.B /
+filter,
+.BR t / T
+filter by type,
+.B u
+switch between system and user units,
+.B s
+status,
+.B l
+journal,
+.B r
+refresh,
+.B q
+quit.
+.PP
+In the editor:
+.B enter
+edit a value,
+.B space
+cycle a boolean or enumerated value,
+.B a
+add a directive,
+.B S
+add a section,
+.B d
+delete,
+.BR J / K
+move a line,
+.B n
+next problem,
+.B u
+undo,
+.B p
+diff,
+.B v
+verify,
+.B V
+show or hide the verify output,
+.BR [ / ]
+scroll the documentation,
+.B ctrl+s
+save,
+.B esc
+back.
+.PP
+While editing a value:
+.BR tab " or " down
+next choice,
+.BR shift+tab " or " up
+previous choice,
+.B enter
+accept,
+.B esc
+cancel.
+.SH ENVIRONMENT
+.TP
+.B SYSDTUI_EMBEDDED_DOCS
+When set, use the documentation embedded in the binary rather than the
+installed man pages.
+.TP
+.B SYSDTUI_UNIT_PATH
+A colon-separated list of directories that replaces the unit search path;
+the first one receives new units and drop-ins.
+.SH FILES
+.TP
+.I /etc/systemd/system
+Where system units and drop-ins are written.
+.TP
+.I ~/.config/systemd/user
+Where user units and drop-ins are written.
+.SH SEE ALSO
+.BR systemctl (1),
+.BR systemd\-analyze (1),
+.BR systemd.unit (5),
+.BR systemd.service (5),
+.BR systemd.exec (5)

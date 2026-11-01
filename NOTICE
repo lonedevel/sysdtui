@@ -1,0 +1,15 @@
+sysdtui
+Copyright 2026 the sysdtui authors
+
+This product includes documentation from systemd
+(https://github.com/systemd/systemd), licensed under the GNU Lesser General
+Public License, version 2.1 or later:
+
+  - internal/catalog/systemd.json.gz: directive names and descriptions
+    extracted from systemd's section 5 man pages by cmd/gencatalog.
+  - internal/catalog/testdata/*.5.gz: copies of systemd man pages, used as
+    test input.
+
+The systemd documentation is not covered by sysdtui's Apache 2.0 license.
+The full text of the LGPL 2.1 is at
+https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
